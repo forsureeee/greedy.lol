@@ -1,4 +1,3 @@
--- im crine
 local InputService = game:GetService('UserInputService');
 local TextService = game:GetService('TextService');
 local TweenService = game:GetService('TweenService');
@@ -2686,35 +2685,82 @@ function Library:CreateWindow(...)
             Parent = TabContainer;
         });
 
-        local LeftSide = Library:Create('Frame', {
+        -- Scrollable groupbox columns:
+        -- Long columns used to extend outside the main window. These are ScrollingFrames now,
+        -- so big pages like weapon skin changers stay inside the UI and scroll vertically.
+        local LeftSide = Library:Create('ScrollingFrame', {
             BackgroundTransparency = 1;
+            BorderSizePixel = 0;
             Position = UDim2.new(0, 8, 0, 8);
-            Size = UDim2.new(0.5, -12, 0, 507);
+            Size = UDim2.new(0.5, -12, 1, -16);
+            CanvasSize = UDim2.new(0, 0, 0, 0);
+            ScrollBarThickness = 4;
+            ScrollBarImageColor3 = Library.AccentColor;
+            ScrollingDirection = Enum.ScrollingDirection.Y;
+            AutomaticCanvasSize = Enum.AutomaticSize.None;
+            ClipsDescendants = true;
             ZIndex = 2;
             Parent = TabFrame;
         });
 
-        local RightSide = Library:Create('Frame', {
+        local RightSide = Library:Create('ScrollingFrame', {
             BackgroundTransparency = 1;
+            BorderSizePixel = 0;
             Position = UDim2.new(0.5, 4, 0, 8);
-            Size = UDim2.new(0.5, -12, 0, 507);
+            Size = UDim2.new(0.5, -12, 1, -16);
+            CanvasSize = UDim2.new(0, 0, 0, 0);
+            ScrollBarThickness = 4;
+            ScrollBarImageColor3 = Library.AccentColor;
+            ScrollingDirection = Enum.ScrollingDirection.Y;
+            AutomaticCanvasSize = Enum.AutomaticSize.None;
+            ClipsDescendants = true;
             ZIndex = 2;
             Parent = TabFrame;
         });
 
-        Library:Create('UIListLayout', {
+        Library:AddToRegistry(LeftSide, {
+            ScrollBarImageColor3 = 'AccentColor';
+        });
+
+        Library:AddToRegistry(RightSide, {
+            ScrollBarImageColor3 = 'AccentColor';
+        });
+
+        local LeftLayout = Library:Create('UIListLayout', {
             Padding = UDim.new(0, 8);
             FillDirection = Enum.FillDirection.Vertical;
             SortOrder = Enum.SortOrder.LayoutOrder;
             Parent = LeftSide;
         });
 
-        Library:Create('UIListLayout', {
+        local RightLayout = Library:Create('UIListLayout', {
             Padding = UDim.new(0, 8);
             FillDirection = Enum.FillDirection.Vertical;
             SortOrder = Enum.SortOrder.LayoutOrder;
             Parent = RightSide;
         });
+
+        local function UpdateSideCanvas(Side, Layout)
+            local ContentY = Layout.AbsoluteContentSize.Y + 8;
+            Side.CanvasSize = UDim2.new(0, 0, 0, ContentY);
+            Side.ScrollBarThickness = ContentY > Side.AbsoluteSize.Y and 4 or 0;
+        end
+
+        LeftLayout:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function()
+            UpdateSideCanvas(LeftSide, LeftLayout);
+        end);
+
+        RightLayout:GetPropertyChangedSignal('AbsoluteContentSize'):Connect(function()
+            UpdateSideCanvas(RightSide, RightLayout);
+        end);
+
+        LeftSide:GetPropertyChangedSignal('AbsoluteSize'):Connect(function()
+            UpdateSideCanvas(LeftSide, LeftLayout);
+        end);
+
+        RightSide:GetPropertyChangedSignal('AbsoluteSize'):Connect(function()
+            UpdateSideCanvas(RightSide, RightLayout);
+        end);
 
         function Tab:ShowTab()
             for _, Tab in next, Window.Tabs do
