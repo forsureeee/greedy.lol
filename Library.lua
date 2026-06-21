@@ -1,3 +1,4 @@
+-- im crine
 local InputService = game:GetService('UserInputService');
 local TextService = game:GetService('TextService');
 local TweenService = game:GetService('TweenService');
@@ -1751,8 +1752,6 @@ do
         local Groupbox = self;
         local Container = Groupbox.Container;
 
-        local RelativeOffset = 0;
-
         if not Info.Compact then
             local DropdownLabel = Library:CreateLabel({
                 Size = UDim2.new(1, 0, 0, 10);
@@ -1766,12 +1765,6 @@ do
 
             Groupbox:AddBlank(3);
         end
-
-        for _, Element in next, Container:GetChildren() do
-            if not Element:IsA('UIListLayout') then
-                RelativeOffset = RelativeOffset + Element.Size.Y.Offset;
-            end;
-        end;
 
         local DropdownOuter = Library:Create('Frame', {
             BorderColor3 = Color3.new(0, 0, 0);
@@ -1819,7 +1812,7 @@ do
 
         local ItemList = Library:CreateLabel({
             Position = UDim2.new(0, 5, 0, 0);
-            Size = UDim2.new(1, -5, 1, 0);
+            Size = UDim2.new(1, -22, 1, 0);
             TextSize = 14;
             Text = '--';
             TextXAlignment = Enum.TextXAlignment.Left;
@@ -1837,15 +1830,23 @@ do
             Library:AddToolTip(Info.Tooltip, DropdownOuter)
         end
 
-        local MAX_DROPDOWN_ITEMS = 8;
+        -- Long groupbox dropdown fix:
+        -- The list is parented to ScreenGui, not the groupbox, so it cannot be clipped by the groupbox.
+        -- It still positions itself directly under/above the dropdown button.
+        local MAX_DROPDOWN_ITEMS = Info.MaxVisibleItems or 8;
+        local ITEM_HEIGHT = 20;
+        local DropdownHeight = ITEM_HEIGHT + 1;
+        local OpenTween;
+        local ArrowTween;
 
         local ListOuter = Library:Create('Frame', {
             BorderColor3 = Color3.new(0, 0, 0);
-            Position = UDim2.new(0, 4, 0, 20 + RelativeOffset + 1 + 20);
-            Size = UDim2.new(1, -8, 0, MAX_DROPDOWN_ITEMS * 20 + 2);
-            ZIndex = 20;
+            Position = UDim2.fromOffset(0, 0);
+            Size = UDim2.fromOffset(0, 0);
+            ClipsDescendants = true;
+            ZIndex = 200;
             Visible = false;
-            Parent = Container.Parent;
+            Parent = ScreenGui;
         });
 
         local ListInner = Library:Create('Frame', {
@@ -1854,7 +1855,7 @@ do
             BorderMode = Enum.BorderMode.Inset;
             BorderSizePixel = 0;
             Size = UDim2.new(1, 0, 1, 0);
-            ZIndex = 21;
+            ZIndex = 201;
             Parent = ListOuter;
         });
 
@@ -1865,28 +1866,57 @@ do
 
         local Scrolling = Library:Create('ScrollingFrame', {
             BackgroundTransparency = 1;
+            BorderSizePixel = 0;
             CanvasSize = UDim2.new(0, 0, 0, 0);
-            Size = UDim2.new(1, 0, 1, 0);
-            ZIndex = 21;
+            Size = UDim2.new(1, -4, 1, 0);
+            Position = UDim2.fromOffset(0, 0);
+            ZIndex = 202;
             Parent = ListInner;
 
-            TopImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png',
-            BottomImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png',
+            TopImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png';
+            BottomImage = 'rbxasset://textures/ui/Scroll/scroll-middle.png';
 
-            ScrollBarThickness = 3,
-            ScrollBarImageColor3 = Library.AccentColor, 
+            ScrollBarThickness = 3;
+            ScrollBarImageColor3 = Library.AccentColor;
+            ScrollingDirection = Enum.ScrollingDirection.Y;
+            AutomaticCanvasSize = Enum.AutomaticSize.None;
         });
 
         Library:AddToRegistry(Scrolling, {
             ScrollBarImageColor3 = 'AccentColor'
         })
 
-        Library:Create('UIListLayout', {
+        local ListLayout = Library:Create('UIListLayout', {
             Padding = UDim.new(0, 0);
             FillDirection = Enum.FillDirection.Vertical;
             SortOrder = Enum.SortOrder.LayoutOrder;
             Parent = Scrolling;
         });
+
+        local function Tween(Object, TweenInfoData, Props)
+            local T = TweenService:Create(Object, TweenInfoData, Props);
+            T:Play();
+            return T;
+        end
+
+        local function PositionDropdown()
+            local AbsPos = DropdownOuter.AbsolutePosition;
+            local AbsSize = DropdownOuter.AbsoluteSize;
+            local ScreenSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(1920, 1080);
+            local Width = math.max(AbsSize.X, 80);
+            local X = math.clamp(AbsPos.X, 0, math.max(0, ScreenSize.X - Width));
+            local BelowY = AbsPos.Y + AbsSize.Y + 2;
+            local AboveY = AbsPos.Y - DropdownHeight - 2;
+            local Y = BelowY;
+
+            -- If the long dropdown would run off the bottom, flip it upward.
+            if BelowY + DropdownHeight > ScreenSize.Y and AboveY >= 0 then
+                Y = AboveY;
+            end
+
+            ListOuter.Position = UDim2.fromOffset(X, math.max(0, Y));
+            ListOuter.Size = UDim2.fromOffset(Width, ListOuter.Size.Y.Offset);
+        end
 
         function Dropdown:Display()
             local Values = Dropdown.Values;
@@ -1927,7 +1957,6 @@ do
 
             for _, Element in next, Scrolling:GetChildren() do
                 if not Element:IsA('UIListLayout') then
-                    -- Library:RemoveFromRegistry(Element);
                     Element:Destroy();
                 end;
             end;
@@ -1943,9 +1972,9 @@ do
                     BackgroundColor3 = Library.MainColor;
                     BorderColor3 = Library.OutlineColor;
                     BorderMode = Enum.BorderMode.Middle;
-                    Size = UDim2.new(1, -1, 0, 20);
-                    ZIndex = 23;
-                    Active = true,
+                    Size = UDim2.new(1, -1, 0, ITEM_HEIGHT);
+                    ZIndex = 203;
+                    Active = true;
                     Parent = Scrolling;
                 });
 
@@ -1960,13 +1989,13 @@ do
                     TextSize = 14;
                     Text = Value;
                     TextXAlignment = Enum.TextXAlignment.Left;
-                    ZIndex = 25;
+                    ZIndex = 205;
                     Parent = Button;
                 });
 
                 Library:OnHighlight(Button, Button,
-                    { BorderColor3 = 'AccentColor', ZIndex = 24 },
-                    { BorderColor3 = 'OutlineColor', ZIndex = 23 }
+                    { BorderColor3 = 'AccentColor', ZIndex = 204 },
+                    { BorderColor3 = 'OutlineColor', ZIndex = 203 }
                 );
 
                 local Selected;
@@ -2034,23 +2063,60 @@ do
                 Buttons[Button] = Table;
             end;
 
-            local Y = math.clamp(Count * 20, 0, MAX_DROPDOWN_ITEMS * 20) + 1;
-            ListOuter.Size = UDim2.new(1, -8, 0, Y);
-            Scrolling.CanvasSize = UDim2.new(0, 0, 0, (Count * 20) + 1);
-
-            -- ListOuter.Size = UDim2.new(1, -8, 0, (#Values * 20) + 2);
+            DropdownHeight = math.clamp(Count * ITEM_HEIGHT, ITEM_HEIGHT, MAX_DROPDOWN_ITEMS * ITEM_HEIGHT) + 2;
+            ListOuter.Size = UDim2.fromOffset(math.max(DropdownOuter.AbsoluteSize.X, 80), ListOuter.Visible and DropdownHeight or 0);
+            Scrolling.CanvasSize = UDim2.new(0, 0, 0, (Count * ITEM_HEIGHT) + 1);
+            Scrolling.ScrollBarThickness = Count > MAX_DROPDOWN_ITEMS and 3 or 0;
         end;
 
         function Dropdown:OpenDropdown()
+            for Frame, _ in next, Library.OpenedFrames do
+                if Frame.Name == 'DropdownList' and Frame ~= ListOuter then
+                    Frame.Visible = false;
+                    Library.OpenedFrames[Frame] = nil;
+                end;
+            end;
+
+            ListOuter.Name = 'DropdownList';
             ListOuter.Visible = true;
+            ListOuter.Size = UDim2.fromOffset(math.max(DropdownOuter.AbsoluteSize.X, 80), 0);
+            PositionDropdown();
             Library.OpenedFrames[ListOuter] = true;
-            DropdownArrow.Rotation = 180;
+
+            if OpenTween then OpenTween:Cancel(); end;
+            if ArrowTween then ArrowTween:Cancel(); end;
+
+            OpenTween = Tween(ListOuter, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.fromOffset(math.max(DropdownOuter.AbsoluteSize.X, 80), DropdownHeight)
+            });
+
+            ArrowTween = Tween(DropdownArrow, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Rotation = 180
+            });
         end;
 
         function Dropdown:CloseDropdown()
-            ListOuter.Visible = false;
+            if not ListOuter.Visible then return end;
+
             Library.OpenedFrames[ListOuter] = nil;
-            DropdownArrow.Rotation = 0;
+
+            if OpenTween then OpenTween:Cancel(); end;
+            if ArrowTween then ArrowTween:Cancel(); end;
+
+            OpenTween = Tween(ListOuter, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                Size = UDim2.fromOffset(math.max(DropdownOuter.AbsoluteSize.X, 80), 0)
+            });
+
+            ArrowTween = Tween(DropdownArrow, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Rotation = 0
+            });
+
+            task.delay(0.13, function()
+                if not Library.OpenedFrames[ListOuter] then
+                    ListOuter.Visible = false;
+                    Scrolling.CanvasPosition = Vector2.new(0, 0);
+                end;
+            end);
         end;
 
         function Dropdown:OnChanged(Func)
@@ -2093,17 +2159,24 @@ do
             end;
         end);
 
-        InputService.InputBegan:Connect(function(Input)
+        Library:GiveSignal(InputService.InputBegan:Connect(function(Input)
             if Input.UserInputType == Enum.UserInputType.MouseButton1 then
                 local AbsPos, AbsSize = ListOuter.AbsolutePosition, ListOuter.AbsoluteSize;
+                local BtnPos, BtnSize = DropdownOuter.AbsolutePosition, DropdownOuter.AbsoluteSize;
+                local InList = Mouse.X >= AbsPos.X and Mouse.X <= AbsPos.X + AbsSize.X and Mouse.Y >= AbsPos.Y and Mouse.Y <= AbsPos.Y + AbsSize.Y;
+                local InButton = Mouse.X >= BtnPos.X and Mouse.X <= BtnPos.X + BtnSize.X and Mouse.Y >= BtnPos.Y and Mouse.Y <= BtnPos.Y + BtnSize.Y;
 
-                if Mouse.X < AbsPos.X or Mouse.X > AbsPos.X + AbsSize.X
-                    or Mouse.Y < (AbsPos.Y - 20 - 1) or Mouse.Y > AbsPos.Y + AbsSize.Y then
-
+                if not InList and not InButton then
                     Dropdown:CloseDropdown();
                 end;
             end;
-        end);
+        end));
+
+        Library:GiveSignal(RenderStepped:Connect(function()
+            if ListOuter.Visible then
+                PositionDropdown();
+            end;
+        end));
 
         Dropdown:SetValues();
         Dropdown:Display();
@@ -2649,14 +2722,28 @@ function Library:CreateWindow(...)
             end;
 
             TabFrame.Visible = true;
+            TabFrame.Position = UDim2.new(0, 0, 0, 7);
             Blocker.BackgroundTransparency = 0;
-            TabButton.BackgroundColor3 = Library.SelectedTabColor;
-            TabButtonLabel.TextColor3 = Library.AccentColor;
-            Highlight.BackgroundColor3 = Library.AccentColor;
             Highlight.ZIndex = 3;
             Highlight.Visible = true;
+
+            TweenService:Create(TabFrame, TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Position = UDim2.new(0, 0, 0, 0)
+            }):Play();
+
+            TweenService:Create(TabButton, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                BackgroundColor3 = Library.SelectedTabColor
+            }):Play();
+
+            TweenService:Create(TabButtonLabel, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                TextColor3 = Library.AccentColor
+            }):Play();
+
+            TweenService:Create(Highlight, TweenInfo.new(0.14, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                BackgroundColor3 = Library.AccentColor
+            }):Play();
+
             Library.RegistryMap[TabButton].Properties.BackgroundColor3 = 'SelectedTabColor';
-            TabFrame.Visible = true;
         end;
 
 
